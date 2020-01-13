@@ -43,10 +43,10 @@ if enable_depth or enable_rgb:
         config.enable_device(device_id)
 
     if enable_depth:
-        config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)  # depth
+        config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 60)  # depth
 
     if enable_rgb:
-        config.enable_stream(rs.stream.color, 424, 240, rs.format.bgr8, 30)  # rgb
+        config.enable_stream(rs.stream.color, 424, 240, rs.format.bgr8, 60)  # rgb
 
     # Start streaming
     profile = pipeline.start(config)
@@ -66,7 +66,9 @@ if enable_depth or enable_rgb:
 try:
     frame_count = 0
     start_time = time.time()
+    frame_time = start_time
     while True:
+        last_time = frame_time
         frame_time = time.time() - start_time
         frame_count += 1
 
@@ -74,10 +76,10 @@ try:
         # get the frames
         #
         if enable_rgb or enable_depth:
-            frames = pipeline.wait_for_frames()
+            frames = pipeline.wait_for_frames(200 if (frame_count > 1) else 10000) # wait 10 seconds for first frame
 
         if enable_imu:
-            imu_frames = imu_pipeline.wait_for_frames()
+            imu_frames = imu_pipeline.wait_for_frames(200 if (frame_count > 1) else 10000)
 
         if enable_rgb or enable_depth:
             # Align the depth frame to color frame
@@ -107,8 +109,7 @@ try:
         if enable_imu:
             accel_frame = imu_frames.first_or_default(rs.stream.accel, rs.format.motion_xyz32f)
             gyro_frame = imu_frames.first_or_default(rs.stream.gyro, rs.format.motion_xyz32f)
-            print("accel at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(accel_frame.as_motion_frame().get_motion_data())))
-            print("gyro  at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(gyro_frame.as_motion_frame().get_motion_data())))
+            print("imu frame {} in {} seconds: \n\taccel = {}, \n\tgyro = {}".format(str(frame_count), str(frame_time - last_time), str(accel_frame.as_motion_frame().get_motion_data()), str(gyro_frame.as_motion_frame().get_motion_data())))
 
         # Press esc or 'q' to close the image window
         key = cv2.waitKey(1)
