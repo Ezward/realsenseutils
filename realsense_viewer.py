@@ -1,4 +1,5 @@
 ## License: Apache 2.0. See LICENSE file in root directory.
+## Parts of this code are
 ## Copyright(c) 2015-2017 Intel Corporation. All Rights Reserved.
 
 ##################################################
@@ -10,14 +11,22 @@ import numpy as np
 import cv2
 import time
 
-device_id = None  #"923322071108"
+#
+# NOTE: it appears that imu, rgb and depth cannot all be running simultaneously.
+#       Any two of those 3 are fine, but not all three: causes timeout on wait_for_frames()
+#
+device_id = None  # "923322071108" # serial number of device to use or None to use default
 enable_imu = False
 enable_rgb = True
 enable_depth = True
+# TODO: enable_pose
+# TODO: enable_ir_stereo
 
-# Configure depth and color streams
+
+# Configure streams
 pipeline = rs.pipeline()
 config = rs.config()
+
 
 # if we are provided with a specific device, then enable it
 if None != device_id:
@@ -54,7 +63,7 @@ try:
     start_time = time.time()
     while True:
 
-        # Wait for a coherent pair of frames: depth and color
+        # Wait for a coherent set of frames
         frames = pipeline.wait_for_frames()
         frame_time = time.time() - start_time
         frame_count += 1
@@ -87,10 +96,9 @@ try:
         if images is not None:
             cv2.imshow('RealSense', images)
 
-        if 0 == (frame_count % 30):
-            if enable_imu:
-                print("accel at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(accel_frame.as_motion_frame().get_motion_data())))
-                print("gyro  at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(gyro_frame.as_motion_frame().get_motion_data())))
+        if enable_imu:
+            print("accel at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(accel_frame.as_motion_frame().get_motion_data())))
+            print("gyro  at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(gyro_frame.as_motion_frame().get_motion_data())))
 
         # Press esc or 'q' to close the image window
         key = cv2.waitKey(1)
