@@ -16,7 +16,7 @@ import time
 #       Any two of those 3 are fine, but not all three: causes timeout on wait_for_frames()
 #
 device_id = None  # "923322071108" # serial number of device to use or None to use default
-enable_imu = False
+enable_imu = True
 enable_rgb = True
 enable_depth = True
 # TODO: enable_pose
@@ -24,79 +24,89 @@ enable_depth = True
 
 
 # Configure streams
-pipeline = rs.pipeline()
-config = rs.config()
-
-
-# if we are provided with a specific device, then enable it
-if None != device_id:
-    config.enable_device(device_id)
-
-if enable_depth:
-    config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)  # depth
-
-if enable_rgb:
-    config.enable_stream(rs.stream.color, 424, 240, rs.format.bgr8, 30) # rgb
-
 if enable_imu:
-    config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, 63) # acceleration
-    config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)  # gyroscope
+    imu_pipeline = rs.pipeline()
+    imu_config = rs.config()
+    if None != device_id:
+        imu_config.enable_device(device_id)
+    imu_config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, 63) # acceleration
+    imu_config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)  # gyroscope
+    imu_profile = imu_pipeline.start(imu_config)
 
-# Start streaming
-profile = pipeline.start(config)
 
-# Getting the depth sensor's depth scale (see rs-align example for explanation)
-if enable_depth:
-    depth_sensor = profile.get_device().first_depth_sensor()
-    depth_scale = depth_sensor.get_depth_scale()
-    print("Depth Scale is: " , depth_scale)
+if enable_depth or enable_rgb:
+    pipeline = rs.pipeline()
+    config = rs.config()
 
-if enable_depth and enable_rgb:
-    # Create an align object
-    # rs.align allows us to perform alignment of depth frames to others frames
-    # The "align_to" is the stream type to which we plan to align depth frames.
-    align_to = rs.stream.color
-    align = rs.align(align_to)
+    # if we are provided with a specific device, then enable it
+    if None != device_id:
+        config.enable_device(device_id)
+
+    if enable_depth:
+        config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)  # depth
+
+    if enable_rgb:
+        config.enable_stream(rs.stream.color, 424, 240, rs.format.bgr8, 30)  # rgb
+
+    # Start streaming
+    profile = pipeline.start(config)
+
+    # Getting the depth sensor's depth scale (see rs-align example for explanation)
+    if enable_depth:
+        depth_sensor = profile.get_device().first_depth_sensor()
+        depth_scale = depth_sensor.get_depth_scale()
+        print("Depth Scale is: ", depth_scale)
+        if enable_depth:
+            # Create an align object
+            # rs.align allows us to perform alignment of depth frames to others frames
+            # The "align_to" is the stream type to which we plan to align depth frames.
+            align_to = rs.stream.color
+            align = rs.align(align_to)
 
 try:
     frame_count = 0
     start_time = time.time()
     while True:
-
-        # Wait for a coherent set of frames
-        frames = pipeline.wait_for_frames()
         frame_time = time.time() - start_time
         frame_count += 1
 
-        # get imu frames
-        accel_frame = frames.first_or_default(rs.stream.accel, rs.format.motion_xyz32f) if enable_imu else None
-        gyro_frame = frames.first_or_default(rs.stream.gyro, rs.format.motion_xyz32f) if enable_imu else None
-
-        # Align the depth frame to color frame
-        aligned_frames = align.process(frames) if enable_depth and enable_rgb else None
-        depth_frame = aligned_frames.get_depth_frame() if aligned_frames is not None else frames.get_depth_frame()
-        color_frame = aligned_frames.get_color_frame() if aligned_frames is not None else frames.get_color_frame()
-
-        # Convert images to numpy arrays
-        depth_image = np.asanyarray(depth_frame.get_data()) if enable_depth else None
-        color_image = np.asanyarray(color_frame.get_data()) if enable_rgb else None
-
-        # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
-        depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET) if enable_depth else None
-
-        # Stack both images horizontally
-        images = None
-        if enable_rgb:
-            images = np.hstack((color_image, depth_colormap)) if enable_depth else color_image
-        elif enable_depth:
-            images = depth_colormap
-
-        # Show images
-        cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
-        if images is not None:
-            cv2.imshow('RealSense', images)
+        #
+        # get the frames
+        #
+        if enable_rgb or enable_depth:
+            frames = pipeline.wait_for_frames()
 
         if enable_imu:
+            imu_frames = imu_pipeline.wait_for_frames()
+
+        if enable_rgb or enable_depth:
+            # Align the depth frame to color frame
+            aligned_frames = align.process(frames) if enable_depth and enable_rgb else None
+            depth_frame = aligned_frames.get_depth_frame() if aligned_frames is not None else frames.get_depth_frame()
+            color_frame = aligned_frames.get_color_frame() if aligned_frames is not None else frames.get_color_frame()
+
+            # Convert images to numpy arrays
+            depth_image = np.asanyarray(depth_frame.get_data()) if enable_depth else None
+            color_image = np.asanyarray(color_frame.get_data()) if enable_rgb else None
+
+            # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
+            depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET) if enable_depth else None
+
+            # Stack both images horizontally
+            images = None
+            if enable_rgb:
+                images = np.hstack((color_image, depth_colormap)) if enable_depth else color_image
+            elif enable_depth:
+                images = depth_colormap
+
+            # Show images
+            cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+            if images is not None:
+                cv2.imshow('RealSense', images)
+
+        if enable_imu:
+            accel_frame = imu_frames.first_or_default(rs.stream.accel, rs.format.motion_xyz32f)
+            gyro_frame = imu_frames.first_or_default(rs.stream.gyro, rs.format.motion_xyz32f)
             print("accel at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(accel_frame.as_motion_frame().get_motion_data())))
             print("gyro  at frame {} at time {}: {}".format(str(frame_count), str(frame_time), str(gyro_frame.as_motion_frame().get_motion_data())))
 
