@@ -56,7 +56,7 @@ if enable_depth or enable_rgb:
         depth_sensor = profile.get_device().first_depth_sensor()
         depth_scale = depth_sensor.get_depth_scale()
         print("Depth Scale is: ", depth_scale)
-        if enable_depth:
+        if enable_rgb:
             # Create an align object
             # rs.align allows us to perform alignment of depth frames to others frames
             # The "align_to" is the stream type to which we plan to align depth frames.
