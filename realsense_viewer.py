@@ -17,13 +17,14 @@ import time
 #
 device_id = None  # "923322071108" # serial number of device to use or None to use default
 enable_imu = True
-enable_rgb = True
-enable_depth = True
+enable_rgb = False
+enable_depth = False
 # TODO: enable_pose
 # TODO: enable_ir_stereo
 
 
 # Configure streams
+imu_pipeline = None
 if enable_imu:
     imu_pipeline = rs.pipeline()
     imu_config = rs.config()
@@ -34,6 +35,7 @@ if enable_imu:
     imu_profile = imu_pipeline.start(imu_config)
 
 
+pipeline = None
 if enable_depth or enable_rgb:
     pipeline = rs.pipeline()
     config = rs.config()
@@ -119,4 +121,8 @@ try:
 
 finally:
     # Stop streaming
-    pipeline.stop()
+    if pipeline is not None:
+        pipeline.stop()
+    if imu_pipeline is not None:
+        imu_pipeline.stop()
+
