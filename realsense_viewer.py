@@ -17,8 +17,8 @@ import time
 #
 device_id = None  # "923322071108" # serial number of device to use or None to use default
 enable_imu = True
-enable_rgb = False
-enable_depth = False
+enable_rgb = True
+enable_depth = True
 # TODO: enable_pose
 # TODO: enable_ir_stereo
 
@@ -33,6 +33,9 @@ if enable_imu:
     imu_config.enable_stream(rs.stream.accel, rs.format.motion_xyz32f, 63) # acceleration
     imu_config.enable_stream(rs.stream.gyro, rs.format.motion_xyz32f, 200)  # gyroscope
     imu_profile = imu_pipeline.start(imu_config)
+    # eat some frames to allow device to settle
+    for i in range(0, 5):
+        imu_pipeline.wait_for_frames()
 
 
 pipeline = None
@@ -64,6 +67,10 @@ if enable_depth or enable_rgb:
             # The "align_to" is the stream type to which we plan to align depth frames.
             align_to = rs.stream.color
             align = rs.align(align_to)
+    
+    # eat some frames to allow autoexposure to settle
+    for i in range(0, 5):
+        pipeline.wait_for_frames()
 
 try:
     frame_count = 0
@@ -78,10 +85,10 @@ try:
         # get the frames
         #
         if enable_rgb or enable_depth:
-            frames = pipeline.wait_for_frames(200 if (frame_count > 1) else 10000) # wait 10 seconds for first frame
+            frames = pipeline.wait_for_frames(5000 if (frame_count > 1) else 10000) # wait 10 seconds for first frame
 
         if enable_imu:
-            imu_frames = imu_pipeline.wait_for_frames(200 if (frame_count > 1) else 10000)
+            imu_frames = imu_pipeline.wait_for_frames(5000 if (frame_count > 1) else 10000)
 
         if enable_rgb or enable_depth:
             # Align the depth frame to color frame
